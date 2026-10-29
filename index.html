@@ -148,6 +148,8 @@ textarea{width:100%;font:inherit;color:var(--fg);background:var(--field);border:
           <div><label for="actorId">الأداة على Apify</label><input id="actorId" class="ltr"></div>
         </div>
         <p class="note">المفتاح بيتحفظ على الجهاز ده بس، ومش بيتنشر مع الحاسبة. جلب الأسعار بيشتغل من رابط GitHub.</p>
+        <div class="actions"><button class="ghost" id="shareKey">🔑 نسخ رابط فيه المفتاح</button><span class="note" id="shareKeyMsg"></span></div>
+        <p class="note">ابعتي الرابط ده لأختك أو لأي حد بتثقي فيه بس. أول ما يفتحه، المفتاح بيتحفظ عنده لوحده.</p>
         <button class="ghost" id="resetSettings">رجّعي الإعدادات الأصلية</button>
       </div>
     </div>
@@ -503,6 +505,15 @@ function save(){
 SKEYS.forEach(k=>$(k).value=DEFAULTS[k]);
 try{const s=JSON.parse(localStorage.getItem(SKEY)||"null");if(s)SKEYS.forEach(k=>{if(s[k]!=null)$(k).value=s[k]})}catch(e){}
 try{const d=JSON.parse(localStorage.getItem(CKEY)||"null");if(d&&Array.isArray(d.customers)&&d.customers.length){customers=d.customers;current=Math.min(d.current||0,customers.length-1)}}catch(e){}
+/* key passed via private link: #key=... */
+try{const m=location.hash.match(/key=([A-Za-z0-9_\-]+)/);if(m){$("apifyToken").value=m[1];history.replaceState(null,"",location.pathname+location.search)}}catch(e){}
+$("shareKey").onclick=()=>{
+  const k=$("apifyToken").value.trim(),msg=$("shareKeyMsg");
+  if(!k){msg.textContent="حطي المفتاح الأول";return}
+  const link=location.origin+location.pathname+"#key="+k;
+  const done=()=>{msg.textContent="اتنسخ الرابط ✓"};
+  try{navigator.clipboard.writeText(link).then(done,()=>{msg.textContent=link})}catch(e){msg.textContent=link}
+};
 renderAll();
 </script>
 </body>
