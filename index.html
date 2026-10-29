@@ -377,7 +377,7 @@ function normalize(r){
   const url=r.url||r.URL||r.productUrl||r.link||"";
   const name=r.title||r.Title||r.name||r.goodsName||r.goods_name||"";
   const cur=r.currency||r.Currency||(r.salePrice&&r.salePrice.currency)||"";
-  return{id:id||goodsIdOf(url),url,name,sale:isFinite(sale)?sale:retail,retail:isFinite(retail)?retail:sale,cur}}
+  return{id:id||goodsIdOf(url),url,name,cat:r.category||r.categoryName||"",sale:isFinite(sale)?sale:retail,retail:isFinite(retail)?retail:sale,cur}}
 
 $("fetchPrices").onclick=async()=>{
   const s=settings(),token=s.apifyToken.trim();
@@ -420,7 +420,7 @@ $("fetchPrices").onclick=async()=>{
       if(r){used.add(r);const pr=s.priceKind==="retail"?r.retail:r.sale;
         if(isFinite(pr)&&pr>0){it.price=Math.round(pr*100)/100;ok++;
           it._st=`✓ اتجاب${r.cur&&r.cur!=="SAR"?` (العملة ${r.cur}!)`:""}${isFinite(r.retail)&&isFinite(r.sale)&&r.retail>r.sale?` · الأصلي ${fmt(r.retail)} / العرض ${fmt(r.sale)} ر.س`:""}`;
-          if(!it.name&&r.name)it.name=String(r.name).slice(0,70)}
+          if(r.name&&(!it.name||it.name.length>25))it.name=shortName(r.name,r.cat)}
         else it._st="⚠️ مالقيتش سعر للقطعة دي"}
       else it._st="⚠️ مالقيتش القطعة دي، اكتبي سعرها بإيدك";
     });
@@ -433,12 +433,33 @@ $("fetchPrices").onclick=async()=>{
   fetching=false;renderItems();
 };
 
+/* short Arabic product names */
+const TYPES=[["jumpsuit|romper|playsuit","جمبسوت"],["abaya|kaftan","عباية"],["dress","فستان"],["skirt","جيبة"],["jeans|denim pants","جينز"],["shorts","شورت"],
+["pants|trousers|leggings|joggers","بنطلون"],["blazer","بليزر"],["jacket","جاكيت"],["coat|trench","معطف"],["hoodie|sweatshirt","هودي"],["cardigan","كارديجان"],
+["sweater|pullover|jumper","بلوفر"],["t shirt|tshirt|tee","تيشيرت"],["blouse","بلوزة"],["shirt","قميص"],["bodysuit","بودي"],["cami|tank|top|crop","توب"],
+["pajama|sleepwear|loungewear|nightgown|nightdress","بيجامة"],["bra|lingerie|panty|panties|underwear","لانجري"],["swimsuit|bikini|swimwear","مايوه"],
+["sneakers|trainers","كوتشي"],["boots","بوت"],["heels|pumps|stiletto","كعب"],["sandals|slippers|slides","صندل"],["shoes|flats|loafers","حذاء"],
+["phone case","جراب موبايل"],["backpack","شنطة ضهر"],["bag|handbag|tote|purse|clutch","شنطة"],["wallet","محفظة"],["sunglasses|glasses|eyewear","نظارة"],
+["earrings","حلق"],["necklace","سلسلة"],["bracelet|bangle","أسورة"],["ring","خاتم"],["watch","ساعة"],["hat|cap|beanie","كاب"],["scarf|hijab|shawl","طرحة"],
+["belt","حزام"],["socks","شراب"],["hair clip|hair claw|headband|scrunchie|hair","اكسسوار شعر"],["lipstick|lip gloss|makeup|eyeshadow|cosmetic","مكياج"],
+["set|co-ord|2pcs|3pcs|two piece","طقم"]];
+const COLORS=[["black","أسود"],["white","أبيض"],["navy","كحلي"],["blue","أزرق"],["red","أحمر"],["burgundy|wine","نبيتي"],["pink","بمبي"],["green","أخضر"],
+["beige","بيج"],["khaki","كاكي"],["brown|coffee","بني"],["grey|gray","رمادي"],["yellow","أصفر"],["purple|lilac|violet","بنفسجي"],["orange","برتقالي"],
+["gold","دهبي"],["silver","فضي"],["apricot","مشمشي"],["multicolor|colorblock","ملون"]];
+function shortName(title,cat){
+  const t=" "+String(title||"").toLowerCase().replace(/[-_]/g," ")+" ",c=" "+String(cat||"").toLowerCase()+" ";
+  const hit=(list,str)=>{for(const [k,v] of list)if(new RegExp("\\b("+k+")s?\\b").test(str))return v;return""};
+  const type=hit(TYPES,c)||hit(TYPES,t),color=hit(COLORS,t);
+  if(type)return color?type+" "+color:type;
+  return String(title||"").split(/[\s-]+/).filter(Boolean).slice(0,3).join(" ");
+}
+
 /* bulk links */
 function extractLinks(t){
   const out=[];(t.match(/https?:\/\/[^\s<>"'،,]+/gi)||[]).forEach(u=>{u=u.replace(/[).\]}»"'؛:!?]+$/,"");if(!out.includes(u))out.push(u)});return out}
 function nameFromLink(u){
   try{const seg=decodeURIComponent(new URL(u).pathname.split("/").pop()||"");const m=seg.match(/^(.+?)-p-\d+/i);
-    if(m)return m[1].replace(/-/g," ").replace(/\s+/g," ").trim().slice(0,70)}catch(e){}return""}
+    if(m)return shortName(m[1].replace(/-/g," "))}catch(e){}return""}
 let bulkLinks=[];
 $("bulkIn").addEventListener("input",()=>{
   bulkLinks=extractLinks($("bulkIn").value);
