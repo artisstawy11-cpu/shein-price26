@@ -299,7 +299,7 @@ function calc(){
   c.items.forEach(it=>{
     const unit=it.price>0?unitPrice(it.price,rate,p):0,line=unit*it.qty;total+=line;
     sar+=it.price*it.qty;sarBank+=it.price*p.bank*it.qty;sarProfit+=it.price*(1+p.bank)*p.profit*it.qty;
-    const u=$(it._u);if(u){u.className="unit"+(!it.price&&it.link?" need":"");u.textContent=(it._st?it._st+" · ":"")+(it.price>0?`سعر القطعة للعميلة: ${fmt(unit)} ج.م${it.qty>1?` × ${it.qty} = ${fmt(line)} ج.م`:""}`:(it.link?"افتحي اللينك واكتبي السعر بالريال، أو دوسي «هات الأسعار»":""))}
+    const u=$(it._u);if(u){u.className="unit"+(!it.price&&it.link?" need":"");u.textContent=(it._st?it._st+" · ":"")+(it.price>0?`سعر القطعة للعميلة: ${fmt(unit)} ج.م${it.qty>1?` × ${it.qty} = ${fmt(line)} ج.م`:""}`:(it.link&&!it._st?"افتحي اللينك واكتبي السعر بالريال، أو دوسي «هات الأسعار»":""))}
   });
   const depAmt=Math.ceil(total*c.dep/100),rem=total-depAmt;
   $("tTotal").textContent=fmt(total)+" ج.م";$("tDep").textContent=fmt(depAmt)+" ج.م";$("tRem").textContent=fmt(rem)+" ج.م";
@@ -384,14 +384,27 @@ $("fetchPrices").onclick=async()=>{
   if(!token){$("fetchStatus").innerHTML='<span class="st-err">حطي مفتاح Apify الأول من ⚙️ الإعدادات</span>';toggleSettings(true);$("apifyToken").focus();return}
   const c=cur(),targets=c.items.filter(it=>it.link);
   if(!targets.length)return;
-  const ids=[],urls=[];
-  targets.forEach(it=>{it._gid=goodsIdOf(it.link);it._st="⏳ جاري جلب السعر";if(it._gid){if(!ids.includes(it._gid))ids.push(it._gid)}else urls.push(it.link)});
-  fetching=true;$("fetchPrices").disabled=true;$("fetchStatus").textContent="بيجيب الأسعار من شي إن السعودية… ممكن ياخد من 20 ثانية لدقيقة";calc();
-  const input={country:"SA",currency:"SAR",maxItems:targets.length+2};
-  if(ids.length)input.goodsIds=ids;
-  if(urls.length||!ids.length)input.productUrls=urls.length?urls:targets.map(t=>t.link);
+  targets.forEach(it=>{it._gid=goodsIdOf(it.link);it._cart=false;it._st="⏳ جاري جلب السعر"});
+  fetching=true;$("fetchPrices").disabled=true;calc();
   let ok=0;
   try{
+    /* step 1: resolve short app links (onelink / sharejump) to goods ids */
+    const shorts=targets.filter(it=>!it._gid);
+    if(shorts.length){
+      $("fetchStatus").textContent=`بيفك ${shorts.length} لينك مختصر من تطبيق شي إن…`;
+      const rin={startUrls:shorts.map((it,i)=>({url:it.link,userData:{i}})),linkSelector:"",maxRequestsPerCrawl:shorts.length+2,proxyConfiguration:{useApifyProxy:true},
+        preNavigationHooks:`[({request})=>{request.headers={...(request.headers||{}),'User-Agent':'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'}}]`,
+        pageFunction:`async function pageFunction(context){const h=String(context.body);const m=h.match(/id="deeplink" value="([^"]*)"/);let dl=m?m[1]:"";try{dl=decodeURIComponent(dl.replace(/&amp;/g,"&"))}catch(e){}const g=dl.match(/"goods_id"\\s*:\\s*"?(\\d{5,})/)||h.match(/-p-(\\d{5,})/);return {i:context.request.userData.i,gid:g?g[1]:"",cart:/cart_share|share_receiver/.test(dl)}}`};
+      const rr=await fetch(`https://api.apify.com/v2/acts/apify~cheerio-scraper/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=180`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(rin)});
+      const rt=await rr.text();
+      if(rr.status===403&&/approve/i.test(rt))throw new Error("لازم توافقي على صلاحيات أداة Cheerio Scraper في حساب Apify الأول");
+      if(rr.ok){try{JSON.parse(rt).forEach(x=>{const it=shorts[x.i];if(!it)return;if(x.gid)it._gid=x.gid;else if(x.cart)it._cart=true})}catch(e){}}
+    }
+    targets.forEach(it=>{if(it._cart)it._st="🛒 ده لينك سلة كاملة، مش منتج. افتحيه من التطبيق واكتبي الأسعار";else if(!it._gid)it._st="⚠️ مقدرتش أعرف المنتج من اللينك ده"});
+    const ids=[];targets.forEach(it=>{if(it._gid&&!ids.includes(it._gid))ids.push(it._gid)});
+    if(!ids.length)throw new Error("مفيش روابط منتجات أقدر أجيب سعرها");
+    $("fetchStatus").textContent="بيجيب الأسعار من شي إن السعودية… ممكن ياخد من 20 ثانية لدقيقة";
+    const input={country:"SA",currency:"SAR",maxItems:ids.length+2,goodsIds:ids};
     const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),280000);
     const res=await fetch(`https://api.apify.com/v2/acts/${encodeURIComponent(s.actorId.trim()||DEFAULTS.actorId).replace("%7E","~")}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=240`,
       {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input),signal:ctl.signal});
@@ -402,9 +415,8 @@ $("fetchPrices").onclick=async()=>{
     const data=JSON.parse(txt),list=(Array.isArray(data)?data:[]).map(normalize).filter(r=>isFinite(r.sale)||isFinite(r.retail));
     const used=new Set();
     targets.forEach(it=>{
-      let r=list.find(x=>it._gid&&(x.id===it._gid||String(x.url).includes(it._gid)));
-      if(!r&&list.length===targets.length)r=list[targets.indexOf(it)];
-      if(!r&&targets.length===1&&list.length)r=list[0];
+      if(!it._gid)return;
+      let r=list.find(x=>x.id===it._gid||String(x.url).includes(it._gid));
       if(r){used.add(r);const pr=s.priceKind==="retail"?r.retail:r.sale;
         if(isFinite(pr)&&pr>0){it.price=Math.round(pr*100)/100;ok++;
           it._st=`✓ اتجاب${r.cur&&r.cur!=="SAR"?` (العملة ${r.cur}!)`:""}${isFinite(r.retail)&&isFinite(r.sale)&&r.retail>r.sale?` · الأصلي ${fmt(r.retail)} / العرض ${fmt(r.sale)} ر.س`:""}`;
@@ -415,6 +427,7 @@ $("fetchPrices").onclick=async()=>{
     $("fetchStatus").innerHTML=`<span class="${ok===targets.length?"st-ok":"st-err"}">اتجاب سعر ${ok} من ${targets.length} قطعة</span>`;
   }catch(e){
     targets.forEach(it=>{if(it._st&&it._st.startsWith("⏳"))it._st="⚠️ ماتجابش"});
+    if(ok)e.message+=` (اتجاب ${ok})`;
     $("fetchStatus").innerHTML=`<span class="st-err">${e.name==="AbortError"?"الطلب خد وقت طويل، جربي تاني":(e.message==="Failed to fetch"?"مقدرتش أوصل لـ Apify. لو فاتحة الحاسبة من Claude، افتحيها من رابط GitHub.":e.message)}</span>`;
   }
   fetching=false;renderItems();
