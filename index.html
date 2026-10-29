@@ -323,18 +323,15 @@ function buildMsg(p){
   const valid=c.items.map((it,i)=>({it,i})).filter(x=>x.it.price>0);
   let m=`✨ أهلًا${name?" "+name:""} ✨\nده تفاصيل طلبك من شي إن، واختاري نظام الدفع اللي يناسبك:\n`;
   if(!valid.length)m+="\n(لسه مفيش منتجات)\n";
-  const DEPS=[[100,"1️⃣"],[75,"2️⃣"],[50,"3️⃣"]],totals={100:0,75:0,50:0};
-  if(valid.length)m+=`\n🛍️ المنتجات:\n`;
-  valid.forEach(({it,i},n)=>{
-    const parts=DEPS.map(([dep])=>{const unit=unitPrice(it.price,p.rates[dep],p);totals[dep]+=unit*it.qty;return `${fmt(unit)} (${dep}%)`});
-    m+=`\n${n+1}) ${it.name.trim()||"قطعة "+(i+1)}${it.qty>1?` × ${it.qty}`:""}\n`;
-    if(/^https?:\/\//.test(it.link||""))m+=`${it.link}\n`;
-    m+=`💵 ${parts.join(" · ")} جنيه${it.qty>1?" للقطعة":""}\n`;
-  });
-  DEPS.forEach(([dep,ic])=>{
+  [[100,"1️⃣"],[75,"2️⃣"],[50,"3️⃣"]].forEach(([dep,ic])=>{
     if(!valid.length)return;
-    const total=totals[dep],depAmt=Math.ceil(total*dep/100),rem=total-depAmt;
-    m+=`\n${ic} ديبوزيت ${dep}% (الريال بـ ${fmt(p.rates[dep])})\n💰 الإجمالي: ${fmt(total)} جنيه\n`;
+    const rate=p.rates[dep];let total=0,body="";
+    valid.forEach(({it,i})=>{
+      const unit=unitPrice(it.price,rate,p),line=unit*it.qty;total+=line;
+      body+=`▫️ ${it.name.trim()||"قطعة "+(i+1)}: ${fmt(unit)} ج.م${it.qty>1?` × ${it.qty} = ${fmt(line)} ج.م`:""}\n`;
+    });
+    const depAmt=Math.ceil(total*dep/100),rem=total-depAmt;
+    m+=`\n${ic} ديبوزيت ${dep}% (الريال بـ ${fmt(rate)})\n${body}💰 الإجمالي: ${fmt(total)} جنيه\n`;
     m+=dep===100?`✅ تدفعي الطلب كامل: ${fmt(depAmt)} جنيه\n`:`✅ تدفعي الآن: ${fmt(depAmt)} جنيه\n⏳ الباقي عند الاستلام: ${fmt(rem)} جنيه\n`;
   });
   m+=`\n🚚 الشحن البري يوصل خلال ${p.days} يوم\n`;
