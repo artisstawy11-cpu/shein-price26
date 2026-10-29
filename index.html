@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>حاسبة طلبات شي إن</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Readex+Pro:wght@500;700&display=swap">
+<style>
+/* Layout: customer tabs on top, two-column workbench (inputs | live message), settings drawer for prices + payment data */
+:root{
+  --bg:#f6f3f5; --surface:#ffffff; --fg:#231a21; --muted:#6f6470; --line:#e4dbe2;
+  --accent:#8a2a5c; --accent-soft:#f3e3ec; --ok:#1d7a52; --danger:#b3261e; --field:#fbf9fa;
+  --f-display:"Readex Pro","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans Arabic",system-ui,"Segoe UI",Tahoma,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#18131a; --surface:#221b24; --fg:#f2eaf0; --muted:#a99cab; --line:#3a2f3c;
+  --accent:#e58bb8; --accent-soft:#3a2333; --ok:#5fd19d; --danger:#ff8a80; --field:#1c161e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#18131a; --surface:#221b24; --fg:#f2eaf0; --muted:#a99cab; --line:#3a2f3c;
+  --accent:#e58bb8; --accent-soft:#3a2333; --ok:#5fd19d; --danger:#ff8a80; --field:#1c161e; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+#openSettings[aria-expanded="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 40px}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+header h1{font-family:var(--f-display);font-weight:700;font-size:1.7rem;margin:0;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--muted)}
+.grid{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel h2{font-family:var(--f-display);font-size:1.05rem;font-weight:500;margin:0;color:var(--accent)}
+.panel h3{font-size:.95rem;font-weight:600;margin:0}
+label{font-size:.85rem;color:var(--muted);display:block;margin-bottom:4px}
+input,select{width:100%;font:inherit;color:var(--fg);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+input:focus,select:focus,button:focus-visible,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+input[type=number]{font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
+input.ltr{direction:ltr;text-align:right}
+.row{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.deps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dep{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--field);cursor:pointer;text-align:center;display:flex;flex-direction:column;gap:2px;margin:0}
+.dep input{display:none}
+.dep b{font-family:var(--f-display);font-size:1.1rem;color:var(--fg)}
+.dep span{font-size:.8rem}
+.dep:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.dep:has(input:checked) b{color:var(--accent)}
+.items{display:flex;flex-direction:column;gap:10px}
+.item{display:grid;grid-template-columns:1fr 110px 70px auto;gap:8px;align-items:end}
+@media (max-width:480px){.item{grid-template-columns:1fr 1fr 70px}.item .name{grid-column:1/-1}}
+.item .unit{grid-column:1/-1;font-size:.82rem;color:var(--muted);margin-top:-4px}
+.item .link{grid-column:1/-1;display:flex;gap:8px;align-items:center}
+.item .link input{font-size:.85rem;padding:6px 10px}
+.item .link a{flex:none;font-size:.85rem;color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:8px;padding:6px 10px;white-space:nowrap}
+.item .need{color:var(--accent)}
+.bulk{border:1px dashed var(--accent);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;color:var(--fg)}
+.fetchbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.fetchbar .note{flex:1 1 200px}
+.st-ok{color:var(--ok)}.st-err{color:var(--danger)}
+#rawOut{min-height:120px;font-size:.75rem;direction:ltr;text-align:left;font-family:ui-monospace,monospace}
+.bulk summary{color:var(--accent);font-weight:600}
+#bulkIn{min-height:110px;font-size:.88rem}
+#bulkOut{min-height:90px;font-size:.82rem;direction:ltr;text-align:left;white-space:pre;overflow-x:auto}
+.item + .item{border-top:1px dashed var(--line);padding-top:10px}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--field);color:var(--fg);padding:8px 12px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:600}
+button.ghost{background:transparent}
+button.danger{color:var(--danger);border-color:var(--danger);background:transparent}
+.del{padding:8px 10px;color:var(--muted)}
+/* customer tabs */
+.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.tab{flex:none;display:flex;align-items:center;gap:6px;border-radius:999px;padding:7px 14px;background:var(--surface);border:1px solid var(--line);color:var(--fg);white-space:nowrap}
+.tab small{color:var(--muted);font-variant-numeric:tabular-nums}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.tab[aria-selected="true"] small{color:var(--surface);opacity:.85}
+.tab.add{border-style:dashed;color:var(--accent);background:transparent}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media (max-width:480px){.sum{grid-template-columns:1fr}}
+.sum div{background:var(--field);border:1px solid var(--line);border-radius:10px;padding:10px}
+.sum small{color:var(--muted);display:block;font-size:.8rem}
+.sum strong{font-family:var(--f-display);font-size:1.3rem;font-variant-numeric:tabular-nums}
+.sum .hl{border-color:var(--accent);background:var(--accent-soft)}
+.sum .hl strong{color:var(--accent)}
+details{font-size:.88rem;color:var(--muted)}
+details summary{cursor:pointer}
+.bd{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin-top:8px;font-variant-numeric:tabular-nums}
+.bd span:nth-child(even){text-align:left;color:var(--fg)}
+textarea{width:100%;font:inherit;color:var(--fg);background:var(--field);border:1px solid var(--line);border-radius:10px;padding:10px 12px;resize:vertical}
+#msg{min-height:440px;font-size:.95rem;line-height:1.75}
+#note{min-height:70px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.actions a{text-decoration:none}
+.toast{color:var(--ok);font-size:.88rem}
+.note{font-size:.82rem;color:var(--muted);margin:0}
+.settings{border-color:var(--accent)}
+.settings .cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:760px){.settings .cols{grid-template-columns:1fr}}
+.settings .cols > div{display:flex;flex-direction:column;gap:12px;min-width:0}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.88rem}
+</style>
+</head>
+<body>
+
+<div class="wrap" dir="rtl" lang="ar">
+  <header>
+    <div>
+      <h1>حاسبة طلبات شي إن</h1>
+      <p>كل عميلة في صفحة لوحدها. اكتبي أسعار القطع بالريال، والرسالة بتتجهز تلقائيًا.</p>
+    </div>
+    <button id="openSettings" aria-expanded="false">⚙️ الإعدادات وبيانات الدفع</button>
+  </header>
+
+  <section class="panel settings" id="settings" hidden>
+    <div class="actions" style="justify-content:space-between">
+      <h2>الإعدادات وبيانات الدفع</h2>
+      <button class="ghost" id="closeSettings">تم ✓</button>
+    </div>
+    <div class="cols">
+      <div>
+        <h3>💳 بيانات الدفع (بتظهر في الرسالة)</h3>
+        <div><label for="wallet">رقم المحفظة</label><input id="wallet" class="ltr" inputmode="tel"></div>
+        <div><label for="insta">لينك انستا باي</label><input id="insta" class="ltr" inputmode="url"></div>
+        <div><label for="ipa">عنوان انستا باي</label><input id="ipa" class="ltr"></div>
+        <div><label for="note">سطر إضافي في آخر الرسالة (اختياري)</label><textarea id="note" placeholder="مثال: 🎁 لفترة محدودة: هدية مع كل أوردر!"></textarea></div>
+        <p class="note">لو سبتي أي خانة فاضية، مش هتظهر في الرسالة.</p>
+      </div>
+      <div>
+        <h3>💰 الأسعار</h3>
+        <div class="row">
+          <div><label for="r100">سعر الريال، ديبوزيت 100%</label><input id="r100" type="number" step="0.1"></div>
+          <div><label for="r75">سعر الريال، ديبوزيت 75%</label><input id="r75" type="number" step="0.1"></div>
+          <div><label for="r50">سعر الريال، ديبوزيت 50%</label><input id="r50" type="number" step="0.1"></div>
+        </div>
+        <div class="row">
+          <div><label for="bank">عمولة تحويل البنك %</label><input id="bank" type="number" step="0.1" min="0"></div>
+          <div><label for="profit">نسبة الربح %</label><input id="profit" type="number" step="1" min="0"></div>
+          <div><label for="days">مدة الشحن البري (يوم)</label><input id="days" type="number"></div>
+        </div>
+        <div><label for="round">تقريب سعر القطعة</label>
+          <select id="round"><option value="1">لأقرب جنيه (لأعلى)</option><option value="5">لأقرب 5 جنيه (لأعلى)</option><option value="10">لأقرب 10 جنيه (لأعلى)</option><option value="0">بدون تقريب</option></select></div>
+        <h3>🔗 جلب الأسعار من شي إن (Apify)</h3>
+        <div><label for="apifyToken">مفتاح Apify (API token)</label><input id="apifyToken" class="ltr" type="password" autocomplete="off" placeholder="apify_api_..."></div>
+        <div class="row">
+          <div><label for="priceKind">السعر اللي يتاخد</label>
+            <select id="priceKind"><option value="sale">السعر المعروض حاليًا</option><option value="retail">السعر الأصلي قبل أي خصم</option></select></div>
+          <div><label for="actorId">الأداة على Apify</label><input id="actorId" class="ltr"></div>
+        </div>
+        <p class="note">المفتاح بيتحفظ على الجهاز ده بس، ومش بيتنشر مع الحاسبة. جلب الأسعار بيشتغل من رابط GitHub.</p>
+        <button class="ghost" id="resetSettings">رجّعي الإعدادات الأصلية</button>
+      </div>
+    </div>
+  </section>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="العميلات"></nav>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="actions" style="justify-content:space-between">
+        <h2>بيانات الطلب</h2>
+        <span id="delWrap"><button class="ghost" id="delCust">حذف العميلة</button></span>
+      </div>
+      <div><label for="cname">اسم العميلة</label><input id="cname" placeholder="مثال: منى"></div>
+
+      <div>
+        <label>نظام الديبوزيت (للحساب اللي هنا، والرسالة بتعرض التلاتة)</label>
+        <div class="deps">
+          <label class="dep"><input type="radio" name="dep" value="100"><b>100%</b><span>الريال بـ <em id="r100l">13</em></span></label>
+          <label class="dep"><input type="radio" name="dep" value="75"><b>75%</b><span>الريال بـ <em id="r75l">14</em></span></label>
+          <label class="dep"><input type="radio" name="dep" value="50"><b>50%</b><span>الريال بـ <em id="r50l">15</em></span></label>
+        </div>
+      </div>
+
+      <details class="bulk" id="bulkBox">
+        <summary>📋 لصق روابط شي إن (كتير مرة واحدة)</summary>
+        <label for="bulkIn">الصقي رسالة العميلة كلها هنا، والحاسبة هتشيل الكلام وتسيب الروابط بس</label>
+        <textarea id="bulkIn" placeholder="مثال: عايزة الفستان ده https://ar.shein.com/... والبلوزة دي كمان https://..."></textarea>
+        <div class="actions">
+          <button class="primary" id="bulkAdd" disabled>أضيفي الروابط كقطع</button>
+          <button class="ghost" id="bulkCopy" disabled>نسخ الروابط بس</button>
+          <span class="note" id="bulkCount"></span>
+        </div>
+        <textarea id="bulkOut" readonly aria-label="الروابط بعد التنظيف" hidden></textarea>
+      </details>
+
+      <div class="fetchbar">
+        <button class="primary" id="fetchPrices" disabled>💲 هات الأسعار من شي إن</button>
+        <span class="note" id="fetchStatus"></span>
+      </div>
+
+      <div class="items" id="items"></div>
+      <div class="actions"><button class="ghost" id="add">+ إضافة قطعة</button></div>
+
+      <div class="sum">
+        <div class="hl"><small>إجمالي الطلب</small><strong id="tTotal">0</strong></div>
+        <div><small>المطلوب دفعه الآن</small><strong id="tDep">0</strong></div>
+        <div><small>الباقي عند الاستلام</small><strong id="tRem">0</strong></div>
+      </div>
+
+      <details>
+        <summary>التفاصيل الداخلية (لا تظهر للعميلة)</summary>
+        <div class="bd" id="bd"></div>
+      </details>
+      <details id="rawBox" hidden>
+        <summary>آخر رد من Apify (للمراجعة)</summary>
+        <textarea id="rawOut" readonly aria-label="رد Apify"></textarea>
+      </details>
+    </section>
+
+    <section class="panel">
+      <h2>رسالة العميلة</h2>
+      <textarea id="msg" aria-label="نص الرسالة"></textarea>
+      <div class="actions">
+        <button class="primary" id="copy">نسخ الرسالة</button>
+        <a id="wa" target="_blank" rel="noopener"><button type="button" tabindex="-1">فتح في واتساب</button></a>
+        <span class="toast" id="toast" hidden>تم النسخ ✓</span>
+      </div>
+      <p class="note">تقدري تعدّلي في نص الرسالة قبل النسخ. أي تغيير في الأرقام يعيد كتابة الرسالة من جديد.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const DEFAULTS={wallet:"+201133521741",insta:"https://ipn.eg/S/nouuur/instapay/0OaU2B",ipa:"nouuur@instapay",note:"",
+  r100:"13",r75:"14",r50:"15",bank:"6",profit:"25",days:"30",round:"5",
+  apifyToken:"",priceKind:"sale",actorId:"native_emblem~shein-product-scraper"};
+const SKEYS=Object.keys(DEFAULTS);
+const SKEY="sheinCalcSettings",CKEY="sheinCalcCustomers";
+const newCust=()=>({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:"",dep:100,items:[{name:"",price:0,qty:1}]});
+let customers=[{...newCust(),name:"منى (مثال)",items:[{name:"فستان",price:59,qty:1},{name:"بلوزة",price:32,qty:2}]}];
+let current=0,seq=0;
+
+const fmt=n=>Number(n).toLocaleString("en-US",{maximumFractionDigits:2});
+const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
+const cur=()=>customers[current];
+function settings(){const s={};SKEYS.forEach(k=>s[k]=$(k).value);return s}
+function roundUp(v,step){return step>0?Math.ceil(v/step-1e-9)*step:Math.round(v*100)/100}
+function params(){const s=settings();return{rates:{100:num(s.r100),75:num(s.r75),50:num(s.r50)},bank:num(s.bank)/100,profit:num(s.profit)/100,step:+s.round,days:num(s.days)||30,s}}
+function unitPrice(price,rate,p){return roundUp(price*(1+p.bank)*(1+p.profit)*rate,p.step)}
+function custTotal(c,p){const r=p.rates[c.dep];return c.items.reduce((t,it)=>t+(it.price>0?unitPrice(it.price,r,p)*it.qty:0),0)}
+
+function renderTabs(){
+  const p=params(),box=$("tabs");box.innerHTML="";
+  customers.forEach((c,i)=>{
+    const b=document.createElement("button");b.className="tab";b.setAttribute("role","tab");
+    b.setAttribute("aria-selected",i===current?"true":"false");
+    const t=custTotal(c,p);
+    b.innerHTML=`<span></span>${t?`<small>${fmt(t)} ج.م</small>`:""}`;
+    b.firstChild.textContent=c.name.trim()||`عميلة ${i+1}`;
+    b.onclick=()=>{current=i;renderAll()};
+    box.appendChild(b);
+  });
+  const a=document.createElement("button");a.className="tab add";a.textContent="+ عميلة جديدة";
+  a.onclick=()=>{customers.push(newCust());current=customers.length-1;renderAll();$("cname").focus()};
+  box.appendChild(a);
+  box.querySelector('[aria-selected="true"]')?.scrollIntoView({block:"nearest",inline:"nearest"});
+}
+
+function renderItems(){
+  const box=$("items"),items=cur().items;box.innerHTML="";
+  items.forEach((it,i)=>{
+    const id=seq++;
+    const d=document.createElement("div");d.className="item";
+    d.innerHTML=`<div class="name"><label for="n${id}">القطعة ${i+1}</label><input id="n${id}" placeholder="اسم القطعة (اختياري)"></div>
+      <div><label for="p${id}">السعر بالريال</label><input id="p${id}" type="number" min="0" step="0.01" inputmode="decimal"></div>
+      <div><label for="q${id}">العدد</label><input id="q${id}" type="number" min="1" step="1" inputmode="numeric"></div>
+      <button class="del" title="حذف القطعة" aria-label="حذف القطعة">✕</button>
+      <div class="link"><input id="l${id}" class="ltr" inputmode="url" placeholder="لينك المنتج (اختياري)" aria-label="لينك المنتج"><a target="_blank" rel="noopener" hidden>فتح ↗</a></div>
+      <div class="unit" id="u${id}"></div>`;
+    box.appendChild(d);
+    const n=d.querySelector("#n"+id),p=d.querySelector("#p"+id),q=d.querySelector("#q"+id);
+    const l=d.querySelector("#l"+id),a=d.querySelector(".link a");
+    const setA=()=>{const ok=/^https?:\/\//.test(it.link||"");a.hidden=!ok;if(ok)a.href=it.link};
+    n.value=it.name;p.value=it.price||"";q.value=it.qty;l.value=it.link||"";setA();
+    l.oninput=()=>{it.link=l.value.trim();setA();save()};
+    n.oninput=()=>{it.name=n.value;calc()};
+    p.oninput=()=>{it.price=num(p.value);calc()};
+    q.oninput=()=>{it.qty=Math.max(1,Math.round(num(q.value))||1);calc()};
+    d.querySelector(".del").onclick=()=>{items.splice(i,1);if(!items.length)items.push({name:"",price:0,qty:1});renderItems()};
+    it._u="u"+id;
+  });
+  calc();
+}
+
+function renderAll(){
+  const c=cur();
+  $("cname").value=c.name;
+  document.querySelectorAll('input[name=dep]').forEach(r=>r.checked=+r.value===c.dep);
+  resetDel();
+  renderItems();
+}
+
+function calc(){
+  const c=cur(),p=params(),rate=p.rates[c.dep];
+  ["100","75","50"].forEach(k=>$("r"+k+"l").textContent=fmt(p.rates[k]));
+  let total=0,sar=0,sarBank=0,sarProfit=0;
+  c.items.forEach(it=>{
+    const unit=it.price>0?unitPrice(it.price,rate,p):0,line=unit*it.qty;total+=line;
+    sar+=it.price*it.qty;sarBank+=it.price*p.bank*it.qty;sarProfit+=it.price*(1+p.bank)*p.profit*it.qty;
+    const u=$(it._u);if(u){u.className="unit"+(!it.price&&it.link?" need":"");u.textContent=(it._st?it._st+" · ":"")+(it.price>0?`سعر القطعة للعميلة: ${fmt(unit)} ج.م${it.qty>1?` × ${it.qty} = ${fmt(line)} ج.م`:""}`:(it.link?"افتحي اللينك واكتبي السعر بالريال، أو دوسي «هات الأسعار»":""))}
+  });
+  const depAmt=Math.ceil(total*c.dep/100),rem=total-depAmt;
+  $("tTotal").textContent=fmt(total)+" ج.م";$("tDep").textContent=fmt(depAmt)+" ج.م";$("tRem").textContent=fmt(rem)+" ج.م";
+  const raw=(sar+sarBank+sarProfit)*rate;
+  $("bd").innerHTML=`<span>إجمالي القطع بالريال</span><span>${fmt(sar)} ر.س</span>
+    <span>عمولة البنك</span><span>${fmt(sarBank)} ر.س</span>
+    <span>الربح</span><span>${fmt(sarProfit)} ر.س ≈ ${fmt(sarProfit*rate)} ج.م</span>
+    <span>سعر الريال المستخدم</span><span>${fmt(rate)}</span>
+    <span>الإجمالي قبل التقريب</span><span>${fmt(raw)} ج.م</span>
+    <span>فرق التقريب</span><span>${fmt(total-raw)} ج.م</span>`;
+  buildMsg(p);
+  if(!fetching){const n=c.items.filter(it=>it.link).length;$("fetchPrices").disabled=!n;$("fetchPrices").textContent=n?`💲 هات الأسعار من شي إن (${n})`:"💲 هات الأسعار من شي إن"}
+  renderTabs();
+  save();
+}
+
+function buildMsg(p){
+  const c=cur(),s=p.s,name=c.name.replace(/\(مثال\)/,"").trim();
+  const valid=c.items.map((it,i)=>({it,i})).filter(x=>x.it.price>0);
+  let m=`✨ أهلًا${name?" "+name:""} ✨\nده تفاصيل طلبك من شي إن، واختاري نظام الدفع اللي يناسبك:\n`;
+  if(!valid.length)m+="\n(لسه مفيش منتجات)\n";
+  [[100,"1️⃣"],[75,"2️⃣"],[50,"3️⃣"]].forEach(([dep,ic])=>{
+    if(!valid.length)return;
+    const rate=p.rates[dep];let total=0,body="";
+    valid.forEach(({it,i})=>{
+      const unit=unitPrice(it.price,rate,p),line=unit*it.qty;total+=line;
+      body+=`▫️ ${it.name.trim()||"قطعة "+(i+1)}: ${fmt(unit)} ج.م${it.qty>1?` × ${it.qty} = ${fmt(line)} ج.م`:""}\n`;
+    });
+    const depAmt=Math.ceil(total*dep/100),rem=total-depAmt;
+    m+=`\n${ic} ديبوزيت ${dep}% (الريال بـ ${fmt(rate)})\n${body}💰 الإجمالي: ${fmt(total)} جنيه\n`;
+    m+=dep===100?`✅ تدفعي الطلب كامل: ${fmt(depAmt)} جنيه\n`:`✅ تدفعي الآن: ${fmt(depAmt)} جنيه\n⏳ الباقي عند الاستلام: ${fmt(rem)} جنيه\n`;
+  });
+  m+=`\n🚚 الشحن البري يوصل خلال ${p.days} يوم\n`;
+  const wallet=s.wallet.replace(/\s+/g,""),insta=s.insta.trim(),ipa=s.ipa.trim();
+  if(wallet||insta||ipa){
+    m+=`\n💳 طرق الدفع:\n`;
+    if(wallet)m+=`🔹 محفظة:\n${wallet}\n`;
+    if(insta){m+=`${wallet?"\n":""}🔹 انستا باي (اضغطي على اللينك):\n${insta}\n`;if(ipa)m+=`لو اللينك مفتحش، حوّلي من تطبيق انستا باي على:\n${ipa}\n`}
+    else if(ipa)m+=`${wallet?"\n":""}🔹 انستا باي:\n${ipa}\n`;
+  }
+  if(s.note.trim())m+=`\n${s.note.trim()}\n`;
+  m+=`\nبرجاء إرسال صورة التحويل بعد الدفع لتأكيد الطلب 🤍`;
+  $("msg").value=m;
+  $("wa").href="https://wa.me/?text="+encodeURIComponent(m);
+}
+
+/* delete customer with inline confirm */
+function resetDel(){$("delWrap").innerHTML=`<button class="ghost" id="delCust">حذف العميلة</button>`;$("delCust").onclick=askDel}
+function askDel(){
+  $("delWrap").innerHTML=`<span class="confirm">متأكدة؟ <button class="danger" id="yesDel">احذفي</button><button class="ghost" id="noDel">إلغاء</button></span>`;
+  $("yesDel").onclick=()=>{customers.splice(current,1);if(!customers.length)customers.push(newCust());current=Math.min(current,customers.length-1);renderAll()};
+  $("noDel").onclick=resetDel;
+}
+resetDel();
+
+/* ---------- price fetching via Apify ---------- */
+let fetching=false;
+function goodsIdOf(u){const m=String(u).match(/-p-(\d{5,})/i)||String(u).match(/goods_?id=(\d{5,})/i)||String(u).match(/\/(\d{6,})(?:\.html)?(?:[?#]|$)/);return m?m[1]:""}
+function toNum(v){
+  if(v==null)return NaN;
+  if(typeof v==="number")return v;
+  if(typeof v==="string"){const m=v.replace(/,/g,"").match(/\d+(\.\d+)?/);return m?parseFloat(m[0]):NaN}
+  if(typeof v==="object"){for(const k of["amount","value","price","usdAmount"])if(v[k]!=null){const n=toNum(v[k]);if(isFinite(n))return n}}
+  return NaN}
+function pick(o,keys){
+  const seen=new Set();const walk=(x,d)=>{if(!x||typeof x!=="object"||d>3||seen.has(x))return NaN;seen.add(x);
+    for(const k of Object.keys(x))if(keys.includes(k.toLowerCase().replace(/[_\s-]/g,""))){const n=toNum(x[k]);if(isFinite(n)&&n>0)return n}
+    for(const k of Object.keys(x)){const n=walk(x[k],d+1);if(isFinite(n))return n}return NaN};
+  return walk(o,0)}
+const SALE_KEYS=["saleprice","price","currentprice","finalprice","specialprice","salepricetext","pricetext"];
+const RETAIL_KEYS=["retailprice","originalprice","was","wasprice","listprice","regularprice","retailpricetext","originalpricetext"];
+function normalize(r){
+  const sale=pick(r,SALE_KEYS),retail=pick(r,RETAIL_KEYS);
+  const id=String(r.goodsId??r.goods_id??r.goodsID??r.id??r.ID??r.productId??"");
+  const url=r.url||r.URL||r.productUrl||r.link||"";
+  const name=r.title||r.Title||r.name||r.goodsName||r.goods_name||"";
+  const cur=r.currency||r.Currency||(r.salePrice&&r.salePrice.currency)||"";
+  return{id:id||goodsIdOf(url),url,name,sale:isFinite(sale)?sale:retail,retail:isFinite(retail)?retail:sale,cur}}
+
+$("fetchPrices").onclick=async()=>{
+  const s=settings(),token=s.apifyToken.trim();
+  if(!token){$("fetchStatus").innerHTML='<span class="st-err">حطي مفتاح Apify الأول من ⚙️ الإعدادات</span>';toggleSettings(true);$("apifyToken").focus();return}
+  const c=cur(),targets=c.items.filter(it=>it.link);
+  if(!targets.length)return;
+  const ids=[],urls=[];
+  targets.forEach(it=>{it._gid=goodsIdOf(it.link);it._st="⏳ جاري جلب السعر";if(it._gid){if(!ids.includes(it._gid))ids.push(it._gid)}else urls.push(it.link)});
+  fetching=true;$("fetchPrices").disabled=true;$("fetchStatus").textContent="بيجيب الأسعار من شي إن السعودية… ممكن ياخد من 20 ثانية لدقيقة";calc();
+  const input={country:"SA",currency:"SAR",maxItems:targets.length+2};
+  if(ids.length)input.goodsIds=ids;
+  if(urls.length||!ids.length)input.productUrls=urls.length?urls:targets.map(t=>t.link);
+  let ok=0;
+  try{
+    const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),280000);
+    const res=await fetch(`https://api.apify.com/v2/acts/${encodeURIComponent(s.actorId.trim()||DEFAULTS.actorId).replace("%7E","~")}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=240`,
+      {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input),signal:ctl.signal});
+    clearTimeout(tm);
+    const txt=await res.text();$("rawOut").value=txt.slice(0,20000);$("rawBox").hidden=false;
+    if(!res.ok){let msg=`خطأ ${res.status}`;try{msg+=": "+(JSON.parse(txt).error?.message||"")}catch(e){}
+      if(res.status===401)msg="مفتاح Apify غلط أو منتهي. راجعيه في الإعدادات.";if(res.status===402)msg="رصيد Apify خلص.";throw new Error(msg)}
+    const data=JSON.parse(txt),list=(Array.isArray(data)?data:[]).map(normalize).filter(r=>isFinite(r.sale)||isFinite(r.retail));
+    const used=new Set();
+    targets.forEach(it=>{
+      let r=list.find(x=>it._gid&&(x.id===it._gid||String(x.url).includes(it._gid)));
+      if(!r&&list.length===targets.length)r=list[targets.indexOf(it)];
+      if(!r&&targets.length===1&&list.length)r=list[0];
+      if(r){used.add(r);const pr=s.priceKind==="retail"?r.retail:r.sale;
+        if(isFinite(pr)&&pr>0){it.price=Math.round(pr*100)/100;ok++;
+          it._st=`✓ اتجاب${r.cur&&r.cur!=="SAR"?` (العملة ${r.cur}!)`:""}${isFinite(r.retail)&&isFinite(r.sale)&&r.retail>r.sale?` · الأصلي ${fmt(r.retail)} / العرض ${fmt(r.sale)} ر.س`:""}`;
+          if(!it.name&&r.name)it.name=String(r.name).slice(0,70)}
+        else it._st="⚠️ مالقيتش سعر للقطعة دي"}
+      else it._st="⚠️ مالقيتش القطعة دي، اكتبي سعرها بإيدك";
+    });
+    $("fetchStatus").innerHTML=`<span class="${ok===targets.length?"st-ok":"st-err"}">اتجاب سعر ${ok} من ${targets.length} قطعة</span>`;
+  }catch(e){
+    targets.forEach(it=>{if(it._st&&it._st.startsWith("⏳"))it._st="⚠️ ماتجابش"});
+    $("fetchStatus").innerHTML=`<span class="st-err">${e.name==="AbortError"?"الطلب خد وقت طويل، جربي تاني":(e.message==="Failed to fetch"?"مقدرتش أوصل لـ Apify. لو فاتحة الحاسبة من Claude، افتحيها من رابط GitHub.":e.message)}</span>`;
+  }
+  fetching=false;renderItems();
+};
+
+/* bulk links */
+function extractLinks(t){
+  const out=[];(t.match(/https?:\/\/[^\s<>"'،,]+/gi)||[]).forEach(u=>{u=u.replace(/[).\]}»"'؛:!?]+$/,"");if(!out.includes(u))out.push(u)});return out}
+function nameFromLink(u){
+  try{const seg=decodeURIComponent(new URL(u).pathname.split("/").pop()||"");const m=seg.match(/^(.+?)-p-\d+/i);
+    if(m)return m[1].replace(/-/g," ").replace(/\s+/g," ").trim().slice(0,70)}catch(e){}return""}
+let bulkLinks=[];
+$("bulkIn").addEventListener("input",()=>{
+  bulkLinks=extractLinks($("bulkIn").value);
+  $("bulkOut").value=bulkLinks.join("\n");$("bulkOut").hidden=!bulkLinks.length;
+  $("bulkAdd").disabled=$("bulkCopy").disabled=!bulkLinks.length;
+  $("bulkCount").textContent=$("bulkIn").value.trim()?(bulkLinks.length?`لقيت ${bulkLinks.length} لينك`:"مفيش روابط في النص ده"):"";
+});
+$("bulkAdd").onclick=()=>{
+  const items=cur().items;
+  if(items.length===1&&!items[0].price&&!items[0].name&&!items[0].link)items.pop();
+  bulkLinks.forEach(u=>{if(!items.some(it=>it.link===u))items.push({name:nameFromLink(u),price:0,qty:1,link:u})});
+  if(!items.length)items.push({name:"",price:0,qty:1});
+  $("bulkIn").value="";$("bulkIn").dispatchEvent(new Event("input"));$("bulkBox").open=false;
+  renderItems();
+};
+$("bulkCopy").onclick=()=>{
+  const t=$("bulkOut"),v=t.value,done=()=>{$("bulkCount").textContent="تم نسخ الروابط ✓"};
+  const fb=()=>{t.select();try{document.execCommand("copy");done()}catch(e){}};
+  try{navigator.clipboard.writeText(v).then(done,fb)}catch(e){fb()}
+};
+
+$("copy").onclick=()=>{
+  const t=$("msg"),done=()=>{$("toast").hidden=false;setTimeout(()=>$("toast").hidden=true,1800)};
+  const fallback=()=>{t.select();try{document.execCommand("copy");done()}catch(e){}};
+  try{navigator.clipboard.writeText(t.value).then(done,fallback)}catch(e){fallback()}
+};
+$("msg").addEventListener("input",()=>{$("wa").href="https://wa.me/?text="+encodeURIComponent($("msg").value)});
+$("add").onclick=()=>{cur().items.push({name:"",price:0,qty:1});renderItems()};
+$("cname").addEventListener("input",()=>{cur().name=$("cname").value;calc()});
+document.querySelectorAll('input[name=dep]').forEach(r=>r.addEventListener("change",()=>{cur().dep=+r.value;calc()}));
+SKEYS.forEach(k=>$(k).addEventListener("input",calc));
+const toggleSettings=open=>{$("settings").hidden=!open;$("openSettings").setAttribute("aria-expanded",open);$("openSettings").textContent=open?"✕ إخفاء الإعدادات":"⚙️ الإعدادات وبيانات الدفع"};
+$("openSettings").onclick=()=>toggleSettings($("settings").hidden);
+$("closeSettings").onclick=()=>toggleSettings(false);
+$("resetSettings").onclick=()=>{SKEYS.forEach(k=>{if(k!=="apifyToken")$(k).value=DEFAULTS[k]});calc()};
+
+function save(){
+  try{localStorage.setItem(SKEY,JSON.stringify(settings()))}catch(e){}
+  try{localStorage.setItem(CKEY,JSON.stringify({current,customers:customers.map(c=>({id:c.id,name:c.name,dep:c.dep,items:c.items.map(({name,price,qty,link})=>({name,price,qty,link:link||""}))}))}))}catch(e){}
+}
+SKEYS.forEach(k=>$(k).value=DEFAULTS[k]);
+try{const s=JSON.parse(localStorage.getItem(SKEY)||"null");if(s)SKEYS.forEach(k=>{if(s[k]!=null)$(k).value=s[k]})}catch(e){}
+try{const d=JSON.parse(localStorage.getItem(CKEY)||"null");if(d&&Array.isArray(d.customers)&&d.customers.length){customers=d.customers;current=Math.min(d.current||0,customers.length-1)}}catch(e){}
+renderAll();
+</script>
+</body>
+</html>
