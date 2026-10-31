@@ -589,7 +589,7 @@ SKEYS.forEach(k=>$(k).value=DEFAULTS[k]);
 try{const s=JSON.parse(localStorage.getItem(SKEY)||"null");if(s)SKEYS.forEach(k=>{if(s[k]!=null)$(k).value=s[k]})}catch(e){}
 try{const d=JSON.parse(localStorage.getItem(CKEY)||"null");if(d&&Array.isArray(d.customers)&&d.customers.length){customers=d.customers;current=Math.min(d.current||0,customers.length-1)}}catch(e){}
 /* key passed via private link: #key=... */
-try{const m=location.hash.match(/[#&]key=([A-Za-z0-9_\-]+)/),g=location.hash.match(/[#&]gkey=([A-Za-z0-9_\-]+)/);if(m)$("apifyToken").value=m[1];if(g)$("geminiKey").value=g[1];if(m||g)history.replaceState(null,"",location.pathname+location.search)}catch(e){}
+try{const m=location.hash.match(/[#&]key=([A-Za-z0-9_.\-]+)/),g=location.hash.match(/[#&]gkey=([A-Za-z0-9_.\-]+)/);if(m)$("apifyToken").value=m[1];if(g)$("geminiKey").value=g[1];if(m||g)history.replaceState(null,"",location.pathname+location.search)}catch(e){}
 $("shareKey").onclick=()=>{
   const k=$("apifyToken").value.trim(),msg=$("shareKeyMsg");
   if(!k){msg.textContent="حطي المفتاح الأول";return}
