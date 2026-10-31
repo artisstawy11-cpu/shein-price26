@@ -63,6 +63,8 @@ input.ltr{direction:ltr;text-align:right}
 .bulk summary{color:var(--accent);font-weight:600}
 #bulkIn{min-height:110px;font-size:.88rem}
 #bulkOut{min-height:90px;font-size:.82rem;direction:ltr;text-align:left;white-space:pre;overflow-x:auto}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:16px;text-align:center;color:var(--muted);font-size:.88rem}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
 .item + .item{border-top:1px dashed var(--line);padding-top:10px}
 button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--field);color:var(--fg);padding:8px 12px}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:600}
@@ -148,6 +150,12 @@ textarea{width:100%;font:inherit;color:var(--fg);background:var(--field);border:
           <div><label for="actorId">الأداة على Apify</label><input id="actorId" class="ltr"></div>
         </div>
         <p class="note">المفتاح بيتحفظ على الجهاز ده بس، ومش بيتنشر مع الحاسبة. جلب الأسعار بيشتغل من رابط GitHub.</p>
+        <h3>📷 قراءة سكرين السلة (Gemini)</h3>
+        <div><label for="geminiKey">مفتاح Gemini من aistudio.google.com</label><input id="geminiKey" class="ltr" type="password" autocomplete="off" placeholder="AIza..."></div>
+        <div class="row">
+          <div><label for="geminiModel">الموديل</label><input id="geminiModel" class="ltr"></div>
+          <div><label for="egpRate">جنيه ÷ ريال (للسلة بالجنيه)</label><input id="egpRate" type="number" step="0.01" placeholder="فاضي = اكتبي السعر بإيدك"></div>
+        </div>
         <div class="actions"><button class="ghost" id="shareKey">🔑 نسخ رابط فيه المفتاح</button><span class="note" id="shareKeyMsg"></span></div>
         <p class="note">ابعتي الرابط ده لأختك أو لأي حد بتثقي فيه بس. أول ما يفتحه، المفتاح بيتحفظ عنده لوحده.</p>
         <button class="ghost" id="resetSettings">رجّعي الإعدادات الأصلية</button>
@@ -184,6 +192,17 @@ textarea{width:100%;font:inherit;color:var(--fg);background:var(--field);border:
           <span class="note" id="bulkCount"></span>
         </div>
         <textarea id="bulkOut" readonly aria-label="الروابط بعد التنظيف" hidden></textarea>
+      </details>
+
+      <details class="bulk" id="shotBox">
+        <summary>📷 سكرين شوت السلة → قطع</summary>
+        <div class="drop" id="shotDrop">اسحبي صورة السلة هنا، أو انسخيها ودوسي Ctrl+V في أي مكان في الصفحة</div>
+        <div class="actions">
+          <button class="primary" id="shotPick">اختاري صورة من الجهاز</button>
+          <input type="file" id="shotFile" accept="image/*" hidden>
+          <span class="note" id="shotStatus"></span>
+        </div>
+        <p class="note">الأسعار بالريال بتتاخد زي ما هي. لو السلة بالجنيه، شوفي خانة «جنيه ÷ ريال» في الإعدادات.</p>
       </details>
 
       <div class="fetchbar">
@@ -227,7 +246,8 @@ textarea{width:100%;font:inherit;color:var(--fg);background:var(--field);border:
 const $=id=>document.getElementById(id);
 const DEFAULTS={wallet:"+201133521741",insta:"https://ipn.eg/S/nouuur/instapay/0OaU2B",ipa:"nouuur@instapay",note:"",
   r100:"13",r75:"14",r50:"15",bank:"6",profit:"25",days:"30",round:"5",
-  apifyToken:"",priceKind:"sale",actorId:"native_emblem~shein-product-scraper"};
+  apifyToken:"",priceKind:"sale",actorId:"native_emblem~shein-product-scraper",
+  geminiKey:"",geminiModel:"gemini-flash-latest",egpRate:""};
 const SKEYS=Object.keys(DEFAULTS);
 const SKEY="sheinCalcSettings",CKEY="sheinCalcCustomers";
 const newCust=()=>({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:"",dep:100,items:[{name:"",price:0,qty:1}]});
@@ -301,7 +321,7 @@ function calc(){
   c.items.forEach(it=>{
     const unit=it.price>0?unitPrice(it.price,rate,p):0,line=unit*it.qty;total+=line;
     sar+=it.price*it.qty;sarBank+=it.price*p.bank*it.qty;sarProfit+=it.price*(1+p.bank)*p.profit*it.qty;
-    const u=$(it._u);if(u){u.className="unit"+(!it.price&&it.link?" need":"");u.textContent=(it._st?it._st+" · ":"")+(it.price>0?`سعر القطعة للعميلة: ${fmt(unit)} ج.م${it.qty>1?` × ${it.qty} = ${fmt(line)} ج.م`:""}`:(it.link&&!it._st?"افتحي اللينك واكتبي السعر بالريال، أو دوسي «هات الأسعار»":""))}
+    const u=$(it._u);if(u){u.className="unit"+(!it.price&&it.link?" need":"");u.textContent=(it._st?it._st+" · ":"")+(it.price>0?`سعر القطعة للعميلة: ${fmt(unit)} ج.م${it.qty>1?` × ${it.qty} = ${fmt(line)} ج.م`:""}`:(it.link&&!it._st?"افتحي اللينك واكتبي السعر بالريال، أو دوسي «هات الأسعار»":""));u.textContent=u.textContent.replace(/ · $/,"")}
   });
   const depAmt=Math.ceil(total*c.dep/100),rem=total-depAmt;
   $("tTotal").textContent=fmt(total)+" ج.م";$("tDep").textContent=fmt(depAmt)+" ج.م";$("tRem").textContent=fmt(rem)+" ج.م";
@@ -456,6 +476,69 @@ function shortName(title,cat){
   return String(title||"").split(/[\s-]+/).filter(Boolean).slice(0,3).join(" ");
 }
 
+/* ---------- cart screenshot -> items (Gemini) ---------- */
+const CART_PROMPT=`This is a screenshot of a SHEIN shopping cart (the app UI may be Arabic or English). Extract every product line item that is visible.
+Return ONLY a JSON array. Each element:
+{"title": product title as shown (may be truncated),
+ "name_ar": very short Egyptian-Arabic product name, product type + color, max 3 words (e.g. "فستان أسود", "شنطة بيج"),
+ "size": size if shown (e.g. "M", "38") else null,
+ "qty": integer quantity (default 1),
+ "price": the item's current unit price as a number (the main bold price, NOT the crossed-out one),
+ "currency": ISO code inferred from the price symbol: "SR", "ر.س", "SAR" => "SAR"; "ج.م", "EGP", "LE", "E£" => "EGP"; "AED"/"د.إ" => "AED"; "$" => "USD"}
+Ignore order totals, shipping, coupons, points, "you may also like" and recommended products. If a line shows quantity > 1 with a line total, return the unit price. Return [] if there are no cart items.`;
+async function toJpegBase64(blob){
+  const bmp=await createImageBitmap(blob);const sc=Math.min(1,1800/Math.max(bmp.width,bmp.height));
+  const c=document.createElement("canvas");c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);
+  c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);return c.toDataURL("image/jpeg",0.88).split(",")[1];
+}
+async function callGemini(key,model,b64){
+  const models=[...new Set([model,"gemini-flash-latest","gemini-2.5-flash","gemini-2.0-flash"].filter(Boolean))];
+  const body=JSON.stringify({contents:[{parts:[{text:CART_PROMPT},{inline_data:{mime_type:"image/jpeg",data:b64}}]}],generationConfig:{responseMimeType:"application/json",temperature:0}});
+  let last=null;
+  for(const m of models){
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`,{method:"POST",headers:{"Content-Type":"application/json"},body});
+    last={ok:r.ok,status:r.status,text:await r.text()};if(r.status!==404)break;
+  }
+  return last;
+}
+const shotSt=(t,cls)=>{$("shotStatus").innerHTML=`<span class="${cls||""}"></span>`;$("shotStatus").firstChild.textContent=t};
+async function itemsFromShot(blob){
+  const s=settings(),key=s.geminiKey.trim();
+  if(!key){shotSt("حطي مفتاح Gemini الأول من ⚙️ الإعدادات","st-err");toggleSettings(true);$("geminiKey").focus();return}
+  $("shotPick").disabled=true;shotSt("بيقرا صورة السلة… (ثواني)");
+  try{
+    const r=await callGemini(key,(s.geminiModel||"").trim()||"gemini-flash-latest",await toJpegBase64(blob));
+    if(!r.ok)throw new Error(r.status===400||r.status===403?"مفتاح Gemini غلط أو مش مفعّل":r.status===429?"وصلتي لحد Gemini المجاني، استني دقيقة وجربي":"خطأ من Gemini "+r.status);
+    let rows=[];
+    try{const j=JSON.parse(r.text);const t=j.candidates[0].content.parts.map(p=>p.text||"").join("");rows=JSON.parse(t.replace(/^```(json)?|```$/g,"").trim());if(!Array.isArray(rows))rows=rows.items||[]}catch(e){throw new Error("مقدرتش أفهم الصورة، جربي سكرين أوضح")}
+    if(!rows.length)throw new Error("مالقيتش منتجات في الصورة");
+    const egp=num(s.egpRate),items=cur().items;
+    if(items.length===1&&!items[0].price&&!items[0].name&&!items[0].link)items.pop();
+    let est=0,miss=0;
+    rows.forEach(x=>{
+      const cu=String(x.currency||"SAR").toUpperCase(),pr=num(x.price),qty=Math.max(1,Math.round(num(x.qty))||1);
+      let name=String(x.name_ar||"").trim()||shortName(x.title||"");if(x.size)name+=` (${String(x.size).trim()})`;
+      const it={name,price:0,qty,link:""};
+      if(cu==="SAR"&&pr>0){it.price=pr;it._st="📷 من الصورة"}
+      else if(cu==="EGP"&&pr>0&&egp>0){it.price=Math.round(pr/egp*100)/100;it._st=`📷 تقديري من ${fmt(pr)} ج.م`;est++}
+      else{it._st=`📷 السعر في الصورة ${pr?fmt(pr)+" "+cu:"مش واضح"}، اكتبي سعر السعودية`;miss++}
+      items.push(it);
+    });
+    if(!items.length)items.push({name:"",price:0,qty:1});
+    renderItems();
+    shotSt(`اتضاف ${rows.length} قطعة من الصورة${est?` · ${est} سعرهم تقديري من الجنيه`:""}${miss?` · ${miss} محتاجين سعر`:""}. راجعي الأسماء والأسعار`,est||miss?"st-err":"st-ok");
+    $("shotBox").open=true;
+  }catch(e){shotSt(e.message,"st-err")}
+  $("shotPick").disabled=false;
+}
+$("shotPick").onclick=()=>$("shotFile").click();
+$("shotFile").onchange=e=>{const f=e.target.files[0];e.target.value="";if(f)itemsFromShot(f)};
+document.addEventListener("paste",e=>{const f=[...((e.clipboardData&&e.clipboardData.files)||[])].find(f=>/^image\//.test(f.type));if(f){e.preventDefault();$("shotBox").open=true;itemsFromShot(f)}});
+const dz=$("shotDrop");
+["dragover","dragenter"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("over")}));
+["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,()=>dz.classList.remove("over")));
+dz.addEventListener("drop",e=>{e.preventDefault();const f=[...e.dataTransfer.files].find(f=>/^image\//.test(f.type));if(f)itemsFromShot(f)});
+
 /* bulk links */
 function extractLinks(t){
   const out=[];(t.match(/https?:\/\/[^\s<>"'،,]+/gi)||[]).forEach(u=>{u=u.replace(/[).\]}»"'؛:!?]+$/,"");if(!out.includes(u))out.push(u)});return out}
@@ -496,7 +579,7 @@ SKEYS.forEach(k=>$(k).addEventListener("input",calc));
 const toggleSettings=open=>{$("settings").hidden=!open;$("openSettings").setAttribute("aria-expanded",open);$("openSettings").textContent=open?"✕ إخفاء الإعدادات":"⚙️ الإعدادات وبيانات الدفع"};
 $("openSettings").onclick=()=>toggleSettings($("settings").hidden);
 $("closeSettings").onclick=()=>toggleSettings(false);
-$("resetSettings").onclick=()=>{SKEYS.forEach(k=>{if(k!=="apifyToken")$(k).value=DEFAULTS[k]});calc()};
+$("resetSettings").onclick=()=>{SKEYS.forEach(k=>{if(k!=="apifyToken"&&k!=="geminiKey")$(k).value=DEFAULTS[k]});calc()};
 
 function save(){
   try{localStorage.setItem(SKEY,JSON.stringify(settings()))}catch(e){}
@@ -506,11 +589,12 @@ SKEYS.forEach(k=>$(k).value=DEFAULTS[k]);
 try{const s=JSON.parse(localStorage.getItem(SKEY)||"null");if(s)SKEYS.forEach(k=>{if(s[k]!=null)$(k).value=s[k]})}catch(e){}
 try{const d=JSON.parse(localStorage.getItem(CKEY)||"null");if(d&&Array.isArray(d.customers)&&d.customers.length){customers=d.customers;current=Math.min(d.current||0,customers.length-1)}}catch(e){}
 /* key passed via private link: #key=... */
-try{const m=location.hash.match(/key=([A-Za-z0-9_\-]+)/);if(m){$("apifyToken").value=m[1];history.replaceState(null,"",location.pathname+location.search)}}catch(e){}
+try{const m=location.hash.match(/[#&]key=([A-Za-z0-9_\-]+)/),g=location.hash.match(/[#&]gkey=([A-Za-z0-9_\-]+)/);if(m)$("apifyToken").value=m[1];if(g)$("geminiKey").value=g[1];if(m||g)history.replaceState(null,"",location.pathname+location.search)}catch(e){}
 $("shareKey").onclick=()=>{
   const k=$("apifyToken").value.trim(),msg=$("shareKeyMsg");
   if(!k){msg.textContent="حطي المفتاح الأول";return}
-  const link=location.origin+location.pathname+"#key="+k;
+  const gk=$("geminiKey").value.trim();
+  const link=location.origin+location.pathname+"#key="+k+(gk?"&gkey="+gk:"");
   const done=()=>{msg.textContent="اتنسخ الرابط ✓"};
   try{navigator.clipboard.writeText(link).then(done,()=>{msg.textContent=link})}catch(e){msg.textContent=link}
 };
