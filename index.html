@@ -508,6 +508,7 @@ async function itemsFromShot(blob){
   $("shotPick").disabled=true;shotSt("بيقرا صورة السلة… (ثواني)");
   try{
     const r=await callGemini(key,(s.geminiModel||"").trim()||"gemini-flash-latest",await toJpegBase64(blob));
+    if(!r.ok&&/billing|free tier/i.test(r.text))throw new Error("جوجل محتاج تفعّلي الدفع (Billing) على مفتاح Gemini من aistudio.google.com/billing");
     if(!r.ok)throw new Error(r.status===400||r.status===403?"مفتاح Gemini غلط أو مش مفعّل":r.status===429?"وصلتي لحد Gemini المجاني، استني دقيقة وجربي":"خطأ من Gemini "+r.status);
     let rows=[];
     try{const j=JSON.parse(r.text);const t=j.candidates[0].content.parts.map(p=>p.text||"").join("");rows=JSON.parse(t.replace(/^```(json)?|```$/g,"").trim());if(!Array.isArray(rows))rows=rows.items||[]}catch(e){throw new Error("مقدرتش أفهم الصورة، جربي سكرين أوضح")}
