@@ -3,11 +3,11 @@
   "bank": 6,
   "profit": 30,
   "pct": 50,
-  "days": 35,
+  "days": 40,
   "round": 5,
   "wallet": "+201133521741",
-  "insta": "https://ipn.eg/S/nouuur/instapay/0OaU2B",
-  "ipa": "nouuur@instapay",
+  "insta": "https://ipn.eg/S/sheinouri.eg/instapay/6tproI",
+  "ipa": "Sheinouri.eg@instapay",
   "templates": [
     {
       "id": "price",
